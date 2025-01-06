@@ -1,0 +1,6 @@
+{
+    "components": [
+        "fish_multiplayer:player_animator"
+    ],
+    "hitbox": [0.6, 1.8, 0.6]
+}
