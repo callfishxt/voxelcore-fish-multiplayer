@@ -6,6 +6,7 @@ local rotationSpeedFactor = 0.2
 local currentAngle = 0
 local desiredAngle = 0
 
+
 function on_render()
     local playerData = fetchPlayerData(entity:get_uid())
     if not playerData then
@@ -17,7 +18,11 @@ function on_render()
     if playerData.body_rotation ~= nil then
         updateEntityRotation(tonumber(playerData.body_rotation))
     end
+    
+    pos = entity.transform:get_pos()
+    gfx.text3d.set_pos(playerData.text_3d,{pos[1],pos[2]+1.25,pos[3]})
 end
+
 
 function fetchPlayerData(uid)
     return fmp.playerdat[uid]
@@ -33,6 +38,7 @@ function moveEntityTowardsTarget(targetPosition)
         movementDirection[3] * movementSpeed
     })
 end
+
 
 function calculateDirection(currentPos, targetPos)
     return {

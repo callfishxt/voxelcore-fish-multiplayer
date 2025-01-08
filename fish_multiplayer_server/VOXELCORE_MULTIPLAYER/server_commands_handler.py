@@ -1,6 +1,6 @@
 import sys
 class Commands_Handler:
-    def __init__(self,changes):
+    def __init__(self,changes,server_time):
         self.command:str
         self.changes = changes
     
@@ -23,5 +23,7 @@ class Commands_Handler:
                     sys.exit(0)
                 case "clear":
                     self.changes.changes = ""
+
+
                     
                     

@@ -24,7 +24,7 @@ def split_pack_by_bytes(pack, chunk_size):
 def load_changes_for_user(client_socket: socket.socket):
     for item in changes.to_list():
         #print("sync" + item)
-        client_socket.send(f"{item};\n".encode('utf-8'))
+        client_socket.send(f"{item};".encode('utf-8'))
 
 
 
@@ -36,34 +36,46 @@ def handle_client(client_socket, address):
         load_changes_for_user(client_socket)
         is_sync = True
 
+
     while True:
         try:
-            
             data = client_socket.recv(1024).decode('utf-8')
-            print("PACK: R "+data) 
             if not data:
                 break
             
-            command, *args = data.split()
-            if command == "con":
-                nickname = args[0]
-                x,y,z = (args[1],args[2],args[3])
-                max_pack_size = args[4]
-                players[nickname] = client_socket
-                mp_size[nickname] = int(max_pack_size)
-                print(f"{nickname} connected.")
+            messages = data.split(';')
 
-            elif command == "bp":
-                block_id, x, y, z, rot = args
-                place_block(block_id, int(x), int(y), int(z), int(rot), nickname)
-            elif command == "bb":
-                block_id, x, y, z = args
-                break_block(block_id, int(x), int(y), int(z), nickname)
-            elif command == "ep":
-                x,y,z,x_angle = args
-                entity_pos(nickname,x,y,z,x_angle)
-            else:
-                print(f"Unknown command {data} from {nickname}")
+            for message in messages:
+                if message:
+                    print("PACK: R " + message) 
+                    command, *args = message.split()
+                    
+                    match command:
+                        case "con":
+                            if len(args) == 5:
+                                nickname = args[0]
+                                x, y, z = (args[1], args[2], args[3])
+                                max_pack_size = args[4]
+                                players[nickname] = client_socket
+                                mp_size[nickname] = int(max_pack_size)
+                                print(f"{nickname} connected.")
+
+                        case "bp":
+                            if len(args) == 5:
+                                block_id, x, y, z, rot = args
+                                place_block(block_id, int(x), int(y), int(z), int(rot), nickname)
+                        case "bb":
+                            if len(args) == 4:
+                                block_id, x, y, z = args
+                                break_block(block_id, int(x), int(y), int(z), nickname)
+                        case "ep":
+                            if len(args) == 4:
+                                x, y, z, x_angle = args
+                                entity_pos(nickname, x, y, z, x_angle)
+                        case "rm":
+                            if len(args) == 1:
+                                id = args[0]
+                                refresh_model(nickname, id)
             
         except Exception as e:
             print(f"Error: {e}")
@@ -87,6 +99,11 @@ def break_block(block_id, x, y, z, player_nickname):
 def entity_pos(player_nickname,x,y,z,x_angle):
     broadcast(f"ep {player_nickname} {x} {y} {z} {x_angle}",player_nickname)
     #print(f"GET <{player_nickname}> entity_pos  {x} {y} {z} {x_angle}")
+
+def refresh_model(player_nickname,id):
+    broadcast(f"rm {player_nickname} {id}", exclude=player_nickname)
+    #print(f"rm {player_nickname} {id}", exclude=player_nickname)
+    #print(f"GET <{player_nickname}> refresh_model {player_nickname} {id}")
 
 # def entity_body_rot(player_nickname,x):
 #     broadcast(f"entity_body_rot {player_nickname} {x}",player_nickname)
@@ -115,7 +132,7 @@ def broadcast(message:str,exclude=""):
         except Exception as e:
             print(f"Message send error: {e}")
 
-def start_server(host='127.0.0.1', port=12345):
+def start_server(host='0.0.0.0', port=12346):
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server.bind((host, port))
     server.listen(5)
