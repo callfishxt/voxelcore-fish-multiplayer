@@ -3,15 +3,21 @@ import threading
 from server_time import ServerTime
 from changes import ChangeManager as change_manager
 from server_commands_handler import Commands_Handler as commands_handler
-
+from server_config import Config
 
 players = {}
 mp_size = {}
-blocks = {} 
+
+config = Config()
+config.load()
+
 changes = change_manager()
 
+def set_time(seconds):
+    broadcast(f"st {seconds}")
 
-utsc = ["ep"]
+server_time = ServerTime(set_time,changes,config)  
+server_commands_handler = commands_handler(changes,server_time)
 
 def split_pack_by_bytes(pack, chunk_size):    
     chunks = []
@@ -23,10 +29,7 @@ def split_pack_by_bytes(pack, chunk_size):
 
 def load_changes_for_user(client_socket: socket.socket):
     for item in changes.to_list():
-        #print("sync" + item)
-        client_socket.send(f"{item};".encode('utf-8'))
-
-
+        client_socket.send(f"{item}".encode('utf-8'))
 
 def handle_client(client_socket, address):
     print(f"Connected: {address}")
@@ -36,10 +39,9 @@ def handle_client(client_socket, address):
         load_changes_for_user(client_socket)
         is_sync = True
 
-
     while True:
         try:
-            data = client_socket.recv(1024).decode('utf-8')
+            data = client_socket.recv(4096).decode('utf-8')
             if not data:
                 break
             
@@ -52,78 +54,70 @@ def handle_client(client_socket, address):
                     
                     match command:
                         case "con":
-                            if len(args) == 5:
+                            if len(args) == 8:
                                 nickname = args[0]
                                 x, y, z = (args[1], args[2], args[3])
                                 max_pack_size = args[4]
+                                content_packs = str(args[5]).split("/")
+                                seed,generator = (args[6],args[7])
                                 players[nickname] = client_socket
                                 mp_size[nickname] = int(max_pack_size)
+                                for content_pack in content_packs:
+                                    if content_pack not in config.allowed_content_packs:
+                                        client_socket.close()
+                                        players.pop(nickname)
+                                        broadcast(f"dcon {nickname}",nickname)
+                                
+                                if str(seed) != config.world_seed or generator != config.world_generator:
+                                    client_socket.close()
+                                    players.pop(nickname)
+                                    broadcast(f"dcon {nickname}",nickname)
+                                    
+                                    
+
                                 print(f"{nickname} connected.")
 
                         case "bp":
                             if len(args) == 5:
                                 block_id, x, y, z, rot = args
-                                place_block(block_id, int(x), int(y), int(z), int(rot), nickname)
+                                broadcast(f"bp {block_id} {x} {y} {z} {rot}", exclude=nickname)
                         case "bb":
                             if len(args) == 4:
                                 block_id, x, y, z = args
-                                break_block(block_id, int(x), int(y), int(z), nickname)
+                                broadcast(f"bb {block_id} {x} {y} {z}",exclude=nickname)
                         case "ep":
                             if len(args) == 4:
                                 x, y, z, x_angle = args
-                                entity_pos(nickname, x, y, z, x_angle)
+                                broadcast(f"ep {nickname} {x} {y} {z} {x_angle}",nickname)
                         case "rm":
                             if len(args) == 1:
                                 id = args[0]
-                                refresh_model(nickname, id)
+                                broadcast(f"rm {nickname} {id}", exclude=nickname)
                         case "chat":
                             if len(args) == 1:
                                 message = args[0]
                                 msg = f"chat {nickname} {message}"
                                 broadcast(msg,nickname)
-
-            
+                        case "sc":
+                            if len(args) <= 1 and address[0] in config.ops:
+                                _dat = str(args[0]).replace("/"," ").replace('"',"").split(" ")
+                                command, *_args = _dat
+                                server_commands_handler.execute(command,_args)
         except Exception as e:
             print(f"Error: {e}")
             break
 
-    if nickname:
+    if nickname in players:
         try:
-            del players[nickname]
+            players.pop(nickname)
         except:
-            print("")
+            print("Error while deleting player data")
         broadcast(f"dcon {nickname}",nickname)
-        #print(f"{nickname} disconnected.")
 
     client_socket.close()
 
-def place_block(block_id, x, y, z, rot, player_nickname):
-    broadcast(f"bp {block_id} {x} {y} {z} {rot}", exclude=player_nickname)
-    #print(f"GET <{player_nickname}> block_place {block_id} {x} {y} {z} {rot}")
-
-def break_block(block_id, x, y, z, player_nickname):
-    broadcast(f"bb {block_id} {x} {y} {z}",exclude=player_nickname)
-    #print(f"GET <{player_nickname}> block_break {block_id} {x} {y} {z}")
-
-def entity_pos(player_nickname,x,y,z,x_angle):
-    broadcast(f"ep {player_nickname} {x} {y} {z} {x_angle}",player_nickname)
-    #print(f"GET <{player_nickname}> entity_pos  {x} {y} {z} {x_angle}")
-
-def refresh_model(player_nickname,id):
-    broadcast(f"rm {player_nickname} {id}", exclude=player_nickname)
-    #print(f"rm {player_nickname} {id}", exclude=player_nickname)
-    #print(f"GET <{player_nickname}> refresh_model {player_nickname} {id}")
-
-# def entity_body_rot(player_nickname,x):
-#     broadcast(f"entity_body_rot {player_nickname} {x}",player_nickname)
-#     print(f"GET <{player_nickname}> entity_body_rot  {x}")
-
-def set_time(seconds):
-    broadcast(f"st {seconds}")
-    #print(f"POST <EVERYONE> set_time {seconds}")
-
 def broadcast(message:str,exclude=""):
-    if message.split()[0] not in utsc:
+    if message.split()[0] in config.saving_commands:
         changes.add_change(message)
     for player in players:
         try:
@@ -141,30 +135,28 @@ def broadcast(message:str,exclude=""):
         except Exception as e:
             print(f"Message send error: {e}")
 
-def start_server(host='0.0.0.0', port=12346):
+def start_server(host=config.address, port=config.port):
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server.bind((host, port))
     server.listen(5)
     print(f"Server started on {host}:{port}")
-
     while True:
-
         client_socket, address = server.accept()
-        client_handler = threading.Thread(target=handle_client, args=(client_socket, address))
-        client_handler.start()
-
-
-
-
-
+        if config.white_list == True:
+            if address[0] in config.allowed_ips:
+                print(address[0]+" in whitelist. Connecting...")
+                client_handler = threading.Thread(target=handle_client, args=(client_socket, address))
+                client_handler.start()
+            else:
+                print(address[0]+" is not in whitelist!")
+                client_socket.close()
+        elif config.white_list == False:
+            client_handler = threading.Thread(target=handle_client, args=(client_socket, address))
+            client_handler.start()
 
 if __name__ == "__main__":
-    server_time = ServerTime(set_time)  
+    
     server_thread = threading.Thread(target=start_server)
     server_thread.start()
     time_thread = threading.Thread(target=server_time.uptime())
     time_thread.start()
-    _commands_handler = commands_handler(changes)
-    _commands_handler.start()
-    
-

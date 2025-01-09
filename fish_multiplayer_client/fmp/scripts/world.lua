@@ -18,8 +18,17 @@ function connect_to_server(ip,port,nickname)
         print("Connected to server!")
         x,y,z = player.get_pos()
         _nickname = nickname
+        seed = world.get_seed()
+        generator = world.get_generator()
+        content_packs = pack.get_installed()
+        for i = 1, #content_packs do
+            content_packs[i] = content_packs[i] .. ":" .. pack.get_info(content_packs[i])["version"]
+        end
+        content_packs_str = table.concat(content_packs,"/")
+        
+
         player.set_name(0,nickname)
-        socket:send("con " .. nickname.." "..x.." "..y.." "..z.." "..max_packet_size..";")
+        socket:send("con " .. nickname.." "..x.." "..y.." "..z.." "..max_packet_size.." "..content_packs_str.." "..seed.." "..generator..";")
 		connected = true
     end)
 end
@@ -141,6 +150,7 @@ function refresh_model(nickname, index_id)
     end
 end
 
+
 function place_block(block_id, x, y, z,rot)
     if socket and socket:is_connected() then
         local message = string.format("bp %s %d %d %d %d", block_id, x, y, z, rot)
@@ -174,6 +184,17 @@ function send_chat_message(text)
     end
 end
 
+
+function server_command(data) 
+    if socket and socket:is_connected() then
+        data = string.escape(data:trim())
+        if data ~= "" then
+            local message = string.format("sc "..data:replace(' ','/'))
+            socket:send(message..";")   
+        end
+    end
+end
+
 function mysplit(inputstr, sep)
     if sep == nil then
         sep = "%s"
@@ -202,7 +223,14 @@ function on_world_open()
     function (args, kwargs)
         send_chat_message(args[1])
     end
-)
+    )
+    console.add_command(
+    "sc args:str",
+    "Send server execute this command (only ops)",
+    function (args, kwargs)
+        server_command(unpack(args))
+    end
+    )
 end
 function on_world_tick()
     
@@ -223,21 +251,22 @@ function on_world_tick()
             math.abs(y - last_position.y) > movement_threshold or
             math.abs(z - last_position.z) > movement_threshold or
             math.abs(x_angle - last_position.x_angle) > movement_threshold) and
-            (current_time - last_update_time > update_interval) then
+            (current_time - last_update_time > update_interval) and socket and socket:is_connected() then
             socket:send("ep " .. math.floor(x*100)/100 .. " " .. math.floor(y*100)/100 .. " " .. math.floor(z*100)/100 .. " " .. (math.floor(x_angle*100)/100) .. ";")
             print("POST ep " .. x .. " " .. y .. " " .. z .. " " .. x_angle)
             last_position = {x = x, y = y, z = z, x_angle=x_angle}
             last_update_time = current_time 
         end
 
-        if last_itemid ~= itemid then
+        if last_itemid ~= itemid and socket and socket:is_connected() then
             last_itemid = itemid
             refresh_own_model(itemid)
         end
     end
 end
 
-function on_world_quit()    
+function on_world_quit()   
+    print("disconnect") 
     if socket then
         socket:close()
     end

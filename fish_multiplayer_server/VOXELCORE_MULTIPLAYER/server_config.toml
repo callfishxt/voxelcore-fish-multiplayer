@@ -1,0 +1,34 @@
+[connection]
+address = "0.0.0.0"
+port = 12345
+
+[changes]
+saving-commands = ["bp","bb"]
+auto-save = true
+auto-save-time = 90
+
+[time]
+time-sync = 30
+start-time = 640
+
+[white-list]
+white-list = false
+allowed-ips = [
+    "127.0.0.1"
+]
+
+[world]
+generator="base:demo"
+seed=123
+
+[content-packs]
+allowed = [
+    "base:0.25",
+    "fmp:1.9",
+    "moreblocks:1.7.1"
+]
+
+[permissions]
+ops = [
+    "127.0.0.1"
+]

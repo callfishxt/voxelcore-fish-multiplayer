@@ -1,9 +1,10 @@
+import os
 class ChangeManager:
     def __init__(self):
         self.changes = ""
 
     def add_change(self,line):
-        self.changes += line + "\n"
+        self.changes += line + ";\n"
     
     def get_changes(self): return self.changes
 
@@ -14,8 +15,12 @@ class ChangeManager:
 
     def read_changes(self,file="changes.chs"):
         data:str
-        with open(file,"r") as f:
-             data = f.read()
+        try:
+            with open(file,"r+") as f:
+                data = f.read()
+        except FileNotFoundError:
+            print("changes file not found!")
+            return data
         return data
     
     def to_list(self):
