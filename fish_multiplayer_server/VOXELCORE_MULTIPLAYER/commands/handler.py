@@ -3,6 +3,7 @@ from .block_place import BlockPlace
 from .block_break import BlockBreak
 from .entity_position import EntityPosition
 from .refresh_model import RefreshModel
+from .chat_send_message import ChatSendMessage
 
 class CommandHandler:
     def __init__(self, server:AbstractServer, changes:AbstractChangesManager):
@@ -20,3 +21,5 @@ class CommandHandler:
                 await EntityPosition.handle(self._server, player, self._changes, *args)
             case "rm":
                 await RefreshModel.handle(self._server, player, self._changes, *args)
+            case "chat":
+                await ChatSendMessage.handle(self._server, player, self._changes, *args)

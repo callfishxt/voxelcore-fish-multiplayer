@@ -18,6 +18,7 @@ function connect_to_server(ip,port,nickname)
         print("Connected to server!")
         x,y,z = player.get_pos()
         _nickname = nickname
+        player.set_name(0,nickname)
         socket:send("con " .. nickname.." "..x.." "..y.." "..z.." "..max_packet_size..";")
 		connected = true
     end)
@@ -91,6 +92,11 @@ function process_server_data(data)
                 if nickname ~= nil and id ~= nil and _entities[nickname] ~= nil then 
                     refresh_model(nickname,id)
                 end
+            elseif command == "chat" then
+                local nickname, message = args:match("(%S+) (%S+)")
+                if nickname ~= nil and message ~= nil and _entities[nickname] ~= nil then 
+                    console.log(string.format("[%s] %s", nickname,string.replace(message,'/',' ')))
+                end
             elseif command == "dcon" then
                 local nickname = args:match("(%S+)")	
                 if _entities[nickname] ~= nil then
@@ -149,6 +155,25 @@ function break_block(block_id, x, y, z)
     end
 end
 
+function send_chat_message(text)
+    if socket and socket:is_connected() then
+        text = text:trim()
+
+        if console_mode == "chat" then
+            if not text:starts_with("/") then
+                text = string.escape(text)
+            else
+                text = text:sub(2)
+            end
+        end
+        if text ~= "" then
+            console.log("["..player.get_name(0).."] "..text)
+            local message = string.format("chat "..text:replace(' ','/'))
+            socket:send(message..";")   
+        end
+    end
+end
+
 function mysplit(inputstr, sep)
     if sep == nil then
         sep = "%s"
@@ -171,6 +196,13 @@ function on_world_open()
             return "Try connect. More information in console."
         end
     )
+    console.add_command(
+    "chat text:str",
+    "Send server chat message",
+    function (args, kwargs)
+        send_chat_message(args[1])
+    end
+)
 end
 function on_world_tick()
     
