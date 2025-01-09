@@ -1,25 +1,21 @@
+import asyncio
+import aiofile
+
+
 class ChangeManager:
-    def __init__(self):
-        self.changes = ""
-
-    def add_change(self,line):
-        self.changes += line + "\n"
+    def __init__(self, filename):
+        self._filename = filename
+        self._queue = asyncio.Queue()
     
-    def get_changes(self): return self.changes
+    async def start(self):
+        async with aiofile.async_open(self._filename, "a") as file:
+            while True:
+                await file.write(await self._queue.get() + ";")
 
-    def save_changes(self,file="changes.chs"):
-        with open(file,"w+") as f:
-            f.write(self.changes)
-            f.close()
+    async def write_change(self, line):
+        await self._queue.put(line)
 
-    def read_changes(self,file="changes.chs"):
-        data:str
-        with open(file,"r") as f:
-             data = f.read()
-        return data
-    
-    def to_list(self):
-        List = self.changes.split("\n")
-        return List
-
-        
+    async def changes_reader(self) -> asyncio.StreamReader:
+        file = aiofile.AIOFile(self._filename, "r")
+        await file.open()
+        return file
