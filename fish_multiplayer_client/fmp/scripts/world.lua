@@ -108,7 +108,11 @@ function process_server_data(data)
                 if seconds ~= nil then 
                     world.set_day_time(tonumber(seconds)/1440)
                 end
-                
+            elseif command == "pop" then
+                local count = args:match("(%S+)")
+                if count ~= nil then 
+                    console.log(count)
+                end  
             elseif command == "rm" then
                 local nickname, id = args:match("(%S+) (%S+)")
                 if nickname ~= nil and id ~= nil and _entities[nickname] ~= nil then 
@@ -209,6 +213,11 @@ function send_chat_message(text)
     end
 end
 
+function players_online() 
+    if socket and socket:is_connected() then
+        socket:send("pop;")
+    end
+end
 
 function server_command(data) 
     if socket and socket:is_connected() then
@@ -256,6 +265,14 @@ function on_world_open()
         server_command(unpack(args))
     end
     )
+    console.add_command(
+    "pop",
+    "Returns players count",
+    function (args, kwargs)
+        players_online()
+    end
+    )
+    
 end
 function on_world_tick()
     

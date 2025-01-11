@@ -1,5 +1,6 @@
 import socket
 import threading
+import json
 from server_time import ServerTime
 from changes import ChangeManager as change_manager
 from server_commands_handler import Commands_Handler as commands_handler
@@ -44,9 +45,32 @@ def handle_client(client_socket, address):
     while True:
         try:
             data = client_socket.recv(4096).decode('utf-8')
+
+            
+
             if not data:
                 break
             
+            if data.startswith('GET'):
+                json_data = {
+                    "online": len(players),
+                    "generator": config.world_generator,
+                    "seed": int(config.world_seed),
+                    "allowed_content_packs": config.allowed_content_packs,
+                    "optional_content_packs": config.optional_content_packs,
+                    "status": "success"
+                }
+                json_response = json.dumps(json_data, ensure_ascii=True)
+
+                response = 'HTTP/1.1 200 OK\r\n'
+                response += 'Content-Type: application/json; charset=utf-8\r\n'
+                response += 'Content-Length: {}\r\n'.format(len(json_response))
+                response += '\r\n'
+                response += json_response
+
+                client_socket.sendall(response.encode('utf-8'))
+                continue
+
             messages = data.split(';')
 
             for message in messages:
@@ -66,7 +90,7 @@ def handle_client(client_socket, address):
                                 players[nickname] = client_socket
                                 mp_size[nickname] = int(max_pack_size)
                                 for content_pack in content_packs:
-                                    if content_pack not in config.allowed_content_packs and unacceptable == False:
+                                    if content_pack not in config.allowed_content_packs and content_pack not in config.optional_content_packs and unacceptable == False:
                                         client_socket.close()
                                         players.pop(nickname)
                                         broadcast(f"dcon {nickname}",nickname)
@@ -109,10 +133,21 @@ def handle_client(client_socket, address):
                                 msg = f"chat {nickname} {message}"
                                 broadcast(msg,nickname)
                         case "sc":
-                            if len(args) <= 1 and address[0] in config.ops:
+                            if address[0] in config.ops:
                                 _dat = str(args[0]).replace("/"," ").replace('"',"").split(" ")
                                 command, *_args = _dat
                                 server_commands_handler.execute(command,_args)
+                        case "pop":
+                            msg = f"pop {len(players)}"
+                            max_pack_size = mp_size[nickname]
+                            _message = msg + ";"
+                            size = len(_message.encode('utf-8'))
+                            if size <= max_pack_size:
+                                players[nickname].send(_message.encode('utf-8'))
+                            else:
+                                pack_arr = split_pack_by_bytes(_message.encode('utf-8'),max_pack_size)
+                                for pack in pack_arr:
+                                    players[nickname].send(pack)
         except Exception as e:
             print(f"Error: {e}")
             break
@@ -152,6 +187,7 @@ def start_server(host=config.address, port=config.port):
     print(f"Server started on {host}:{port}")
     while True:
         client_socket, address = server.accept()
+        
         if config.white_list == True:
             if address[0] in config.allowed_ips:
                 print(address[0]+" in whitelist. Connecting...")

@@ -12,6 +12,7 @@ class Config:
         self.white_list:bool = False
         self.allowed_ips:list = ["127.0.0.1"]
         self.allowed_content_packs:list = ["base:0.25","fmp:1.9"]
+        self.optional_content_packs:list = ["fishcones:0.1"]
         self.world_generator:str = "Demo"
         self.world_seed:str = "123"
         self.ops:list = ["127.0.0.1"]
@@ -55,6 +56,8 @@ class Config:
         if "content-packs" in data:
             if "allowed" in data["content-packs"]:
                 self.allowed_content_packs = data["content-packs"]["allowed"]
+            if "optional" in data["content-packs"]:
+                self.optional_content_packs = data["content-packs"]["optional"]
         
         if "world" in data:
             if "generator" in data["world"]:

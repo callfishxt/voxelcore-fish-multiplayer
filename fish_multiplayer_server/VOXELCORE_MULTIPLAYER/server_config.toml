@@ -24,7 +24,11 @@ seed=123
 [content-packs]
 allowed = [
     "base:0.25",
-    "fmp:2.0"
+    "fmp:2.1"
+]
+optional = [
+    "base:0.26",
+    "fishcones:0.1"
 ]
 
 [permissions]
