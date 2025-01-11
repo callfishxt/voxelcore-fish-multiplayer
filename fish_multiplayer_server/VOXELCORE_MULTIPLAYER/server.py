@@ -11,6 +11,8 @@ mp_size = {}
 config = Config()
 config.load()
 
+
+
 changes = change_manager()
 
 def set_time(seconds):
@@ -55,6 +57,7 @@ def handle_client(client_socket, address):
                     match command:
                         case "con":
                             if len(args) == 8:
+                                unacceptable = False
                                 nickname = args[0]
                                 x, y, z = (args[1], args[2], args[3])
                                 max_pack_size = args[4]
@@ -63,14 +66,17 @@ def handle_client(client_socket, address):
                                 players[nickname] = client_socket
                                 mp_size[nickname] = int(max_pack_size)
                                 for content_pack in content_packs:
-                                    if content_pack not in config.allowed_content_packs:
+                                    if content_pack not in config.allowed_content_packs and unacceptable == False:
                                         client_socket.close()
                                         players.pop(nickname)
                                         broadcast(f"dcon {nickname}",nickname)
+                                        unacceptable = True
+                                        break
                                 
-                                if str(seed) != config.world_seed or generator != config.world_generator:
+                                if str(seed) != config.world_seed or generator != config.world_generator and unacceptable == False:
                                     client_socket.close()
                                     players.pop(nickname)
+                                    unacceptable = True 
                                     broadcast(f"dcon {nickname}",nickname)
                                     
                                     
@@ -85,10 +91,14 @@ def handle_client(client_socket, address):
                             if len(args) == 4:
                                 block_id, x, y, z = args
                                 broadcast(f"bb {block_id} {x} {y} {z}",exclude=nickname)
-                        case "ep":
+                        case "bsr":
                             if len(args) == 4:
-                                x, y, z, x_angle = args
-                                broadcast(f"ep {nickname} {x} {y} {z} {x_angle}",nickname)
+                                x, y, z, rot = args
+                                broadcast(f"bsr {x} {y} {z} {rot}",exclude=nickname)
+                        case "ep":
+                            if len(args) == 5:
+                                x, y, z, x_angle, y_angle = args
+                                broadcast(f"ep {nickname} {x} {y} {z} {x_angle} {y_angle}",nickname)
                         case "rm":
                             if len(args) == 1:
                                 id = args[0]

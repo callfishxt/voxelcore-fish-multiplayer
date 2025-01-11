@@ -5,7 +5,7 @@ local connected = false
 local _entities = {}
 local _nickname
 
-local last_position = {x = 0, y = 0, z = 0, x_angle=0}
+local last_position = {x = 0, y = 0, z = 0, x_angle=0, y_angle=0}
 local last_update_time = 0
 local update_interval = 0.1
 local movement_threshold = 0.01
@@ -60,6 +60,14 @@ function process_server_data(data)
                 else
                     print("ERROR packet dropped")
                 end 
+            elseif command == "bsr" then
+                local x, y, z, rot = args:match("(%S+) (%S+) (%S+) (%S+)")	
+                if rot ~= nil and x ~= nil and y ~= nil and z ~= nil then
+                    print("GET bsr ".." "..x.." "..y.." "..z.." "..rot)
+                    block.set_rotation(x,y,z,rot)
+                else
+                    print("ERROR packet dropped")
+                end
             elseif command == "bb" then
                 local block_id, x, y, z = args:match("(%S+) (%S+) (%S+) (%S+)")	
                 if block_id ~= nil and x ~= nil and y ~= nil and z ~= nil then
@@ -69,18 +77,19 @@ function process_server_data(data)
                     print("ERROR packet dropped")
                 end
             elseif command == "ep" then
-                local nickname, x, y, z, x_angle = args:match("(%S+) (%S+) (%S+) (%S+) (%S+)")	
+                local nickname, x, y, z, x_angle, y_angle = args:match("(%S+) (%S+) (%S+) (%S+) (%S+) (%S+)")	
                 print(nickname.._nickname)
                 
                 if _entities[nickname] ~= null and _entities[nickname] ~= _nickname and fmp.playerdat[ent_uid] ~= nil then
                     print("ep "..nickname.." "..x.." "..y.." "..z)
-                    print("ebr "..nickname.." "..x_angle)    
+                    print("ebr "..nickname.." "..x_angle.." "..y_angle)    
                     ent_uid =  _entities[nickname]:get_uid()
                     print(ent_uid)
                     fmp.playerdat[ent_uid].position = {tonumber(x), tonumber(y), tonumber(z)}
                     
                     
                     fmp.playerdat[ent_uid].body_rotation = tonumber(x_angle)
+                    fmp.playerdat[ent_uid].head_rotation = tonumber(y_angle)
 
                 elseif _entities[nickname] == nil then
                     _entities[nickname] = entities.spawn("fmp:player", {x,y,z})
@@ -90,12 +99,16 @@ function process_server_data(data)
                     fmp.playerdat[ent_uid].position = {tonumber(x), tonumber(y), tonumber(z)}
                     _entities[nickname].rigidbody:set_body_type("kinematic")
                     _entities[nickname].rigidbody:set_gravity_scale({0, 0, 0})
+                    print("ent_create")
+                    fmp.playerdat[ent_uid].body_rotation = tonumber(x_angle)
+                    fmp.playerdat[ent_uid].head_rotation = tonumber(y_angle)
                 end
             elseif command == "st" then
                 local seconds = args:match("(%S+)")
                 if seconds ~= nil then 
                     world.set_day_time(tonumber(seconds)/1440)
                 end
+                
             elseif command == "rm" then
                 local nickname, id = args:match("(%S+) (%S+)")
                 if nickname ~= nil and id ~= nil and _entities[nickname] ~= nil then 
@@ -132,6 +145,11 @@ function on_block_broken(block_id, x, y, z)
 	break_block(block_id,x,y,z)
 end
 
+fmp.cfunc.block_rotate = function (x,y,z,rot)
+    print("POST bsr ".." "..x.." "..y.." "..z.." "..rot)
+    rotate_block(x,y,z,rot)
+end
+
 function refresh_own_model(id)
     if socket and socket:is_connected() then
         local message = "rm "..id
@@ -161,6 +179,13 @@ end
 function break_block(block_id, x, y, z)
     if socket and socket:is_connected() then
         local message = string.format("bb %s %d %d %d",  block_id, x, y, z)
+        socket:send(message..";")
+    end
+end
+
+function rotate_block(x, y, z,rot)
+    if socket and socket:is_connected() then
+        local message = string.format("bsr %s %d %d %d", x, y, z, rot)
         socket:send(message..";")
     end
 end
@@ -250,11 +275,12 @@ function on_world_tick()
         if (math.abs(x - last_position.x) > movement_threshold or
             math.abs(y - last_position.y) > movement_threshold or
             math.abs(z - last_position.z) > movement_threshold or
-            math.abs(x_angle - last_position.x_angle) > movement_threshold) and
+            math.abs(x_angle - last_position.x_angle) > movement_threshold or
+            math.abs(y_angle - last_position.y_angle) > movement_threshold) and
             (current_time - last_update_time > update_interval) and socket and socket:is_connected() then
-            socket:send("ep " .. math.floor(x*100)/100 .. " " .. math.floor(y*100)/100 .. " " .. math.floor(z*100)/100 .. " " .. (math.floor(x_angle*100)/100) .. ";")
-            print("POST ep " .. x .. " " .. y .. " " .. z .. " " .. x_angle)
-            last_position = {x = x, y = y, z = z, x_angle=x_angle}
+            socket:send("ep " .. math.floor(x*100)/100 .. " " .. math.floor(y*100)/100 .. " " .. math.floor(z*100)/100 .. " " .. math.floor(x_angle*100)/100 ..  " " .. math.floor(y_angle*100)/100 .. ";")
+            print("POST ep " .. x .. " " .. y .. " " .. z .. " " .. x_angle.. " " .. y_angle)
+            last_position = {x = x, y = y, z = z, x_angle=x_angle, y_angle=y_angle}
             last_update_time = current_time 
         end
 

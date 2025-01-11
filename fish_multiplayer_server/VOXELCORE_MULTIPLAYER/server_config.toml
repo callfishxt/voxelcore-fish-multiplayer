@@ -24,8 +24,7 @@ seed=123
 [content-packs]
 allowed = [
     "base:0.25",
-    "fmp:1.9",
-    "moreblocks:1.7.1"
+    "fmp:2.0"
 ]
 
 [permissions]
